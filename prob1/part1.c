@@ -6,21 +6,24 @@
 #include <stdlib.h>
 #include <semaphore.h>
 
-#define THREAD_NUM 8
-
+#define N 100000
 sem_t semEmpty;
 sem_t semFull;
 
 sem_t mutexBuffer;
 
-char buffer[10];
+
+char buffer[N];
 int count = 0;
 int items_produced = 0;
+int items_consumed = 0;
 
 int buffer_length;
 int number_producer_threads;
 int number_consumer_threads;
 int number_items;
+
+int done_consuming = 0;
 
 void* producer(void* tid) {
     while (1) {
@@ -29,7 +32,7 @@ void* producer(void* tid) {
         if(items_produced == number_items) {
             sem_post(&mutexBuffer);
             sem_post(&semFull);
-            printf("thread %d exiting produce\n", tid);
+            // printf("thread %d exiting produce\n", tid);
             pthread_exit(0);
         }
         char x = 'X';
@@ -47,19 +50,23 @@ void* consumer(void* tid) {
     while (1) {
         sem_wait(&semFull);
         sem_wait(&mutexBuffer);
-        if(count > 0) {
-            char y = buffer[count - 1];
-            count--;
-            printf("c:<%d>, item: %c, at %d\n", (long)tid, y, count);
-        }
-        if(items_produced == number_items) {
-            sem_post(&mutexBuffer);
-            sem_post(&semEmpty);
-            printf("thread %d exiting consume\n", tid);
-            pthread_exit(0);
+        if(items_consumed < number_items) {
+            // printf("thread %d exiting consume\n", tid);
+            if(done_consuming == 0) {
+                char y = buffer[count - 1];
+                ++items_consumed;
+                count--;
+                printf("c:<%d>, item: %c, at %d\n", (long)tid, y, count);
+            }
+            if(items_consumed == number_items) {
+                done_consuming = 1; 
+            }
         }
         sem_post(&mutexBuffer);
         sem_post(&semEmpty);
+        if(done_consuming == 1) {
+            pthread_exit(0);
+        }
     }
 }
 
@@ -72,10 +79,10 @@ int main(int argc, char* argv[]) {
 
     int total_threads = number_consumer_threads + number_producer_threads;
 
-    printf("%d\n", buffer_length);
-    printf("%d\n", number_producer_threads);
-    printf("%d\n", number_consumer_threads);
-    printf("%d\n", number_items);
+    // printf("%d\n", buffer_length);
+    // printf("%d\n", number_producer_threads);
+    // printf("%d\n", number_consumer_threads);
+    // printf("%d\n", number_items);
 
     sem_init(&semEmpty, 0, buffer_length);
     sem_init(&semFull, 0, 0);
